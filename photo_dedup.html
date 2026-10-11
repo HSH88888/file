@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사진 정리 도우미</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f4f2;
+  --surface: #fcfcfb;
+  --surface-2: #ecebe7;
+  --border: #dddcd6;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #85847e;
+  --accent: #2a78d6;
+  --accent-ink: #ffffff;
+  --danger: #c4361b;
+  --danger-bg: #fbe9e4;
+  --good: #1d7a3a;
+  --sel: #dbe9fb;
+  --bar: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111110;
+    --surface: #1a1a19;
+    --surface-2: #262624;
+    --border: #3a3936;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #8f8e86;
+    --accent: #3987e5;
+    --danger: #ef6a4f;
+    --danger-bg: #3a1d16;
+    --good: #5cc27a;
+    --sel: #1c3557;
+    --bar: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110; --surface: #1a1a19; --surface-2: #262624; --border: #3a3936;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8e86; --accent: #3987e5;
+  --danger: #ef6a4f; --danger-bg: #3a1d16; --good: #5cc27a; --sel: #1c3557; --bar: #3987e5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+}
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px; }
+h1 { font-size: 18px; margin: 0 0 12px; }
+.wrap { max-width: 1400px; margin: 0 auto; }
+main { padding: 16px; padding-bottom: 96px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+textarea, input, select, button {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+}
+textarea { width: 100%; min-height: 44px; resize: vertical; font-family: Consolas, monospace; }
+button { cursor: pointer; background: var(--surface-2); }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.progress { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+.progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 12px; }
+.card { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.card .v { font-size: 20px; font-weight: 700; }
+.card .l { font-size: 12px; color: var(--text-2); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; overflow-x: auto; }
+.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 10px 14px; white-space: nowrap; }
+.tabs button.on { border-bottom-color: var(--accent); font-weight: 700; }
+.toolbar { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.group { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.group-h { padding: 8px 12px; background: var(--surface-2); display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.group-h b { font-size: 15px; }
+.copies { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 8px; }
+.copy { border: 2px solid var(--border); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.copy.sel { border-color: var(--danger); background: var(--danger-bg); }
+.copy.keep { border-color: var(--good); }
+.copy label { display: flex; gap: 6px; align-items: center; cursor: pointer; font-weight: 700; }
+.path { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; color: var(--text-2); }
+.thumb { width: 100%; aspect-ratio: 4/3; background: var(--surface-2); border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: zoom-in; position: relative; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb img.o3 { transform: rotate(180deg); }
+.thumb img.o6 { transform: rotate(90deg); }
+.thumb img.o8 { transform: rotate(270deg); }
+.thumb .ph { font-size: 13px; color: var(--muted); text-align: center; }
+.thumb .ph b { display: block; font-size: 28px; }
+.badge { position: absolute; top: 4px; left: 4px; background: var(--danger); color: #fff; border-radius: 10px; padding: 0 7px; font-size: 11px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; min-width: 0; }
+.tile .n { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .m { font-size: 11px; color: var(--muted); }
+.mhead { grid-column: 1 / -1; font-weight: 700; font-size: 15px; margin: 12px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.mhead:first-child { margin-top: 0; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+th { background: var(--surface-2); font-size: 12px; color: var(--text-2); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--sel); }
+.barcell { width: 40%; min-width: 80px; }
+.bar { height: 10px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+.list-wrap { overflow-x: auto; }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 16px 0; flex-wrap: wrap; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+.stats-grid h3 { margin: 0 0 8px; font-size: 15px; }
+.selbar {
+  position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 2px solid var(--danger);
+  padding: 10px 16px; display: none; z-index: 10; box-shadow: 0 -4px 12px rgba(0,0,0,.12);
+}
+.selbar.on { display: block; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: none; z-index: 20; flex-direction: column; color: #f0efec; }
+.lightbox.on { display: flex; }
+.lb-body { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; padding: 8px; }
+.lb-body img, .lb-body video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.lb-bar { padding: 10px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: rgba(0,0,0,.6); }
+.lb-bar .path { color: #c3c2b7; flex: 1; min-width: 200px; }
+.lb-bar button { background: #262624; color: #f0efec; border-color: #3a3936; }
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+.notice { background: var(--sel); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.err { color: var(--danger); }
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .copies { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>📷 사진 정리 도우미 <span class="muted small">— 중복 찾기 · 날짜/크기별 둘러보기</span></h1>
+    <label class="small muted" for="roots">사진 폴더 경로 (여러 개면 한 줄에 하나씩, 예: D:\사진)</label>
+    <textarea id="roots" spellcheck="false" placeholder="D:\사진"></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="primary" id="btnScan">스캔 시작</button>
+      <button id="btnCancel" disabled>중지</button>
+      <label class="small"><input type="checkbox" id="allFiles"> 사진·동영상 외 모든 파일 포함</label>
+      <span class="small muted" id="features"></span>
+    </div>
+    <div id="progressBox" style="display:none">
+      <div class="progress"><div id="progressBar"></div></div>
+      <div class="small" id="progressText"></div>
+      <div class="small muted path" id="progressCur"></div>
+    </div>
+    <div class="cards" id="cards"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button data-tab="dups" class="on">🔁 중복 파일</button>
+    <button data-tab="files">🗂️ 전체 파일</button>
+    <button data-tab="stats">📊 날짜·크기 통계</button>
+  </div>
+
+  <!-- 중복 -->
+  <section id="tab-dups">
+    <div class="toolbar">
+      <div class="row">
+        <span>정렬</span>
+        <select id="dupSort">
+          <option value="wasted">절약 용량 큰 순</option>
+          <option value="count">복사본 많은 순</option>
+          <option value="size">파일 크기 큰 순</option>
+          <option value="taken">최근 촬영 순</option>
+        </select>
+        <input id="dupFolder" placeholder="이 폴더가 포함된 그룹만 (선택)" style="flex:1;min-width:200px">
+        <button id="dupApply">적용</button>
+      </div>
+      <div class="row">
+        <b>자동 선택</b>
+        <select id="autoRule">
+          <option value="oldest">가장 먼저 만든 파일 남기기</option>
+          <option value="shortest">경로가 가장 짧은 파일 남기기</option>
+          <option value="longest">경로가 가장 긴 파일 남기기</option>
+          <option value="newest">가장 최근 파일 남기기</option>
+        </select>
+        <input id="autoPrefer" placeholder="꼭 남길 폴더 (예: D:\사진\원본)" style="flex:1;min-width:180px">
+        <input id="autoAvoid" placeholder="먼저 지울 폴더 (예: D:\사진\백업)" style="flex:1;min-width:180px">
+        <button id="autoBtn">모든 그룹에 자동 선택</button>
+      </div>
+      <div class="small muted">자동 선택은 각 그룹에서 1개를 남기고 나머지를 <b>선택만</b> 합니다. 아래에서 확인·수정한 뒤 화면 하단의 삭제 버튼을 누르세요. 그룹의 모든 사본을 지우는 것은 막혀 있습니다.</div>
+    </div>
+    <div id="dupList"></div>
+    <div class="pager" id="dupPager"></div>
+  </section>
+
+  <!-- 전체 -->
+  <section id="tab-files" hidden>
+    <div class="toolbar">
+      <div class="row">
+        <select id="fSort">
+          <option value="taken_desc">촬영일 최신순</option>
+          <option value="taken_asc">촬영일 오래된순</option>
+          <option value="size_desc">크기 큰 순</option>
+          <option value="size_asc">크기 작은 순</option>
+          <option value="name">이름순</option>
+          <option value="path">경로순</option>
+        </select>
+        <select id="fYear"><option value="">전체 연도</option></select>
+        <select id="fMonth"><option value="">전체 월</option></select>
+        <select id="fBucket"><option value="">전체 크기</option></select>
+        <select id="fKind">
+          <option value="">사진+동영상</option>
+          <option value="image">사진만</option>
+          <option value="raw">RAW만</option>
+          <option value="video">동영상만</option>
+        </select>
+        <select id="fExt"><option value="">모든 확장자</option></select>
+        <select id="fSrc">
+          <option value="">날짜 출처 전체</option>
+          <option value="exif">촬영정보(EXIF)</option>
+          <option value="filename">파일 이름</option>
+          <option value="mtime">수정 날짜</option>
+        </select>
+        <label class="small"><input type="checkbox" id="fDup"> 중복만</label>
+        <input id="fQ" placeholder="이름·경로 검색" style="flex:1;min-width:140px">
+        <select id="fView"><option value="grid">썸네일</option><option value="list">목록</option></select>
+      </div>
+      <div class="small muted" id="fInfo"></div>
+    </div>
+    <div id="fileList"></div>
+    <div class="pager" id="filePager"></div>
+  </section>
+
+  <!-- 통계 -->
+  <section id="tab-stats" hidden>
+    <div class="notice small">행을 누르면 <b>전체 파일</b> 탭에서 해당 조건으로 바로 볼 수 있습니다.</div>
+    <div class="stats-grid">
+      <div><h3>연도별</h3><div id="sYears"></div></div>
+      <div><h3 id="sMonthsTitle">월별</h3><div id="sMonths"></div></div>
+      <div><h3>크기별</h3><div id="sBuckets"></div></div>
+      <div><h3>확장자별</h3><div id="sExts"></div></div>
+      <div><h3>날짜를 어디서 읽었나</h3><div id="sSrc"></div></div>
+      <div style="grid-column:1/-1"><h3>중복이 많은 폴더 (상위 30)</h3><div id="sFolders"></div></div>
+    </div>
+  </section>
+</main>
+
+<div class="selbar" id="selbar">
+  <div class="wrap row">
+    <b id="selText"></b>
+    <span>삭제 방식</span>
+    <select id="delMode"></select>
+    <button id="selClear">선택 해제</button>
+    <button class="danger" id="selDelete">선택한 파일 삭제</button>
+    <span class="small muted" id="delStatus"></span>
+  </div>
+</div>
+
+<div class="lightbox" id="lb">
+  <div class="lb-body" id="lbBody"></div>
+  <div class="lb-bar">
+    <button id="lbPrev">◀ 이전</button>
+    <button id="lbNext">다음 ▶</button>
+    <span class="path" id="lbInfo"></span>
+    <button id="lbReveal">📂 폴더에서 보기</button>
+    <button id="lbOpen">원본 새 탭</button>
+    <button id="lbClose">닫기 ✕</button>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(n < 10 ? 2 : 1)) + " " + u[i];
+}
+const fmtNum = (n) => (Number(n) || 0).toLocaleString("ko-KR");
+function fmtTime(sec) {
+  sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return (h ? h + "시간 " : "") + (h || m ? m + "분 " : "") + s + "초";
+}
+const SRC = { exif: "촬영정보", filename: "파일이름", mtime: "수정일", pending: "읽는 중" };
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Photo-Dedup": "1" }, body: JSON.stringify(body),
+  };
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// ---------- 선택 상태 ----------
+const selected = new Map(); // id -> size
+const groupOf = new Map();  // id -> group hash (화면에 그려진 것만)
+const groupMembers = new Map(); // hash -> [ids]
+function updateSelbar() {
+  let b = 0; selected.forEach((s) => b += s);
+  $("#selText").textContent = `${fmtNum(selected.size)}개 선택 · ${fmtBytes(b)} 확보`;
+  $("#selbar").classList.toggle("on", selected.size > 0);
+}
+function toggleSel(id, size, on) {
+  if (on) {
+    const h = groupOf.get(id);
+    if (h) {
+      const others = groupMembers.get(h).filter((x) => x !== id && !selected.has(x));
+      if (others.length === 0) { alert("그룹의 모든 사본을 지울 수는 없습니다. 최소 1개는 남겨야 합니다."); return false; }
+    }
+    selected.set(id, size);
+  } else selected.delete(id);
+  document.querySelectorAll(`[data-copy="${id}"]`).forEach((el) => el.classList.toggle("sel", on));
+  document.querySelectorAll(`input[data-sel="${id}"]`).forEach((el) => el.checked = on);
+  refreshKeepMarks();
+  updateSelbar();
+  return true;
+}
+function refreshKeepMarks() {
+  groupMembers.forEach((ids) => {
+    const anySel = ids.some((i) => selected.has(i));
+    ids.forEach((i) => document.querySelectorAll(`[data-copy="${i}"]`).forEach((el) =>
+      el.classList.toggle("keep", anySel && !selected.has(i))));
+  });
+}
+
+// ---------- 썸네일 ----------
+function thumbHtml(f, badge) {
+  let inner;
+  if (f.thumb === "none") {
+    inner = `<div class="ph"><b>${f.kind === "video" ? "🎬" : "🖼️"}</b>${esc(f.ext.toUpperCase().slice(1))}</div>`;
+  } else {
+    const cls = f.thumb === "exif" && [3, 6, 8].includes(f.orientation) ? "o" + f.orientation : "";
+    inner = `<img loading="lazy" decoding="async" class="${cls}" src="/thumb/${f.id}" alt="" onerror="this.outerHTML='<div class=ph><b>🖼️</b>${esc(f.ext.slice(1).toUpperCase())}</div>'">`;
+  }
+  return `<div class="thumb" data-view="${f.id}">${inner}${badge ? `<span class="badge">${badge}</span>` : ""}</div>`;
+}
+
+// ---------- 상태 / 진행 ----------
+let lastPhase = null, features = {};
+const PHASE = { walk: "1/4 폴더 탐색 중", meta: "2/4 촬영 날짜 읽는 중", quick: "3/4 같은 크기 파일 빠른 비교 중", full: "4/4 후보 파일 전체 내용 비교 중", done: "분석 완료", cancelled: "중지됨", error: "오류", idle: "" };
+async function poll() {
+  let s;
+  try { s = await api("/api/status"); } catch (e) { setTimeout(poll, 3000); return; }
+  features = s.features;
+  if (!$("#roots").value && s.roots.length) $("#roots").value = s.roots.join("\n");
+  $("#features").textContent = `썸네일 ${s.features.pil ? "고화질" : "기본"} · HEIC ${s.features.heif ? "O" : "X"} · 휴지통 ${s.features.trash ? "O" : "X (pip install send2trash)"}`;
+  fillDelMode();
+  $("#btnScan").disabled = s.scanning; $("#btnCancel").disabled = !s.scanning;
+  const box = $("#progressBox");
+  if (s.phase !== "idle") {
+    box.style.display = "";
+    let pct = 0, txt = PHASE[s.phase] || s.phase;
+    if (s.phase === "walk") { txt += ` — ${fmtNum(s.done)}개 (${fmtBytes(s.bytes_done)}) 발견`; pct = 5; }
+    else if (s.phase === "full" && s.bytes_total) { pct = s.bytes_done / s.bytes_total * 100; txt += ` — ${fmtNum(s.done)}/${fmtNum(s.total)}개 · ${fmtBytes(s.bytes_done)} / ${fmtBytes(s.bytes_total)}`; }
+    else if (s.total) { pct = s.done / s.total * 100; txt += ` — ${fmtNum(s.done)}/${fmtNum(s.total)}`; }
+    if (["done", "cancelled", "error"].includes(s.phase)) pct = 100;
+    txt += ` · 경과 ${fmtTime(s.elapsed)}`;
+    if (s.errors) txt += ` · 읽기 실패 ${fmtNum(s.errors)}건`;
+    if (s.message) txt += ` · ${s.message}`;
+    $("#progressBar").style.width = pct.toFixed(1) + "%";
+    $("#progressText").textContent = txt;
+    $("#progressCur").textContent = s.scanning ? s.current : "";
+  }
+  const m = s.summary;
+  $("#cards").innerHTML = m.ready ? [
+    ["전체 파일", fmtNum(m.files) + "개"], ["전체 용량", fmtBytes(m.bytes)],
+    ["중복 그룹", fmtNum(m.groups) + "개"], ["중복 사본 파일", fmtNum(m.dup_files - m.groups) + "개"],
+    ["정리하면 확보 가능", fmtBytes(m.wasted)],
+  ].map(([l, v]) => `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("") : "";
+  if (s.phase !== lastPhase) {
+    const wasScanning = lastPhase && !["done", "cancelled", "error", "idle"].includes(lastPhase);
+    lastPhase = s.phase;
+    if (m.ready && (wasScanning || !loadedOnce)) { loadedOnce = true; reloadAll(); }
+  }
+  setTimeout(poll, s.scanning ? 1500 : 5000);
+}
+let loadedOnce = false;
+function fillDelMode() {
+  const sel = $("#delMode"); if (sel.options.length) return;
+  const opts = [];
+  if (features.trash) opts.push(["trash", "휴지통으로 보내기 (권장)"]);
+  opts.push(["move", `'${features.suffix}' 폴더로 옮기기${features.trash ? "" : " (권장)"}`]);
+  opts.push(["permanent", "영구 삭제 (되돌릴 수 없음)"]);
+  sel.innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+}
+function reloadAll() { dupOffset = 0; loadDups(); filePage = 0; loadFiles(); loadStats(); }
+
+$("#btnScan").onclick = async () => {
+  try {
+    await api("/api/scan", { roots: $("#roots").value.split(/\r?\n/).filter((x) => x.trim()), all_files: $("#allFiles").checked });
+    lastPhase = "walk"; selected.clear(); updateSelbar();
+  } catch (e) { alert(e.message); }
+};
+$("#btnCancel").onclick = () => api("/api/cancel", {});
+
+// ---------- 탭 ----------
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+function showTab(t) {
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  ["dups", "files", "stats"].forEach((x) => $("#tab-" + x).hidden = x !== t);
+}
+
+// ---------- 중복 탭 ----------
+let dupOffset = 0; const DUP_PAGE = 30; let viewList = [];
+async function loadDups() {
+  const q = new URLSearchParams({ sort: $("#dupSort").value, offset: dupOffset, limit: DUP_PAGE, folder: $("#dupFolder").value.trim() });
+  let d; try { d = await api("/api/duplicates?" + q); } catch (e) { $("#dupList").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
+  groupOf.clear(); groupMembers.clear();
+  if (!d.groups.length) { $("#dupList").innerHTML = `<div class="empty">중복 파일이 없습니다${lastPhase && lastPhase !== "done" ? " (분석이 끝나면 표시됩니다)" : ""}.</div>`; $("#dupPager").innerHTML = ""; return; }
+  viewList = [];
+  $("#dupList").innerHTML = d.groups.map((g, gi) => {
+    groupMembers.set(g.hash, g.files.map((f) => f.id));
+    return `<div class="group">
+      <div class="group-h"><b>#${dupOffset + gi + 1}</b>
+        <span>${g.count}개 사본 · 각 ${fmtBytes(g.size)}</span>
+        <span class="muted">정리 시 ${fmtBytes(g.wasted)} 확보</span>
+        <span class="muted small">${esc(g.files[0]?.taken || "")}</span>
+      </div>
+      <div class="copies">${g.files.map((f) => {
+        groupOf.set(f.id, g.hash); viewList.push(f);
+        const on = selected.has(f.id);
+        return `<div class="copy ${on ? "sel" : ""}" data-copy="${f.id}">
+          ${thumbHtml(f)}
+          <label><input type="checkbox" data-sel="${f.id}" data-size="${f.size}" ${on ? "checked" : ""}> 삭제</label>
+          <div class="path">${esc(f.path.slice(0, f.path.length - f.name.length))}<b>${esc(f.name)}</b></div>
+          <div class="small muted">${esc(f.taken || "")} (${SRC[f.date_src] || ""})</div>
+          <div class="row small">
+            <button data-keep="${f.id}">이것만 남기기</button>
+            <button data-reveal="${f.id}">📂 폴더</button>
+          </div>
+        </div>`;
+      }).join("")}</div></div>`;
+  }).join("");
+  refreshKeepMarks();
+  pager($("#dupPager"), dupOffset / DUP_PAGE, Math.ceil(d.total / DUP_PAGE), (p) => { dupOffset = p * DUP_PAGE; loadDups(); window.scrollTo(0, $("#tab-dups").offsetTop - 10); }, `${fmtNum(d.total)}개 그룹`);
+}
+$("#dupList").addEventListener("change", (e) => {
+  const c = e.target.closest("input[data-sel]"); if (!c) return;
+  if (!toggleSel(+c.dataset.sel, +c.dataset.size, c.checked)) c.checked = false;
+});
+$("#dupList").addEventListener("click", (e) => {
+  const k = e.target.closest("[data-keep]");
+  if (k) {
+    const id = +k.dataset.keep, h = groupOf.get(id);
+    toggleSel(id, 0, false);
+    viewList.filter((f) => groupOf.get(f.id) === h && f.id !== id).forEach((f) => toggleSel(f.id, f.size, true));
+  }
+});
+$("#dupSort").onchange = $("#dupApply").onclick = () => { dupOffset = 0; loadDups(); };
+$("#dupFolder").onkeydown = (e) => { if (e.key === "Enter") { dupOffset = 0; loadDups(); } };
+$("#autoBtn").onclick = async () => {
+  const p = await api("/api/auto_plan", { rule: $("#autoRule").value, prefer: $("#autoPrefer").value, avoid: $("#autoAvoid").value });
+  if (!p.ids.length) { alert("선택할 중복 파일이 없습니다."); return; }
+  if (selected.size && !confirm("기존 선택을 지우고 자동 선택으로 바꿀까요?")) return;
+  selected.clear();
+  p.ids.forEach((id, i) => selected.set(id, p.sizes[i]));
+  updateSelbar(); loadDups();
+  alert(`${fmtNum(p.groups)}개 그룹에서 ${fmtNum(p.ids.length)}개 파일(${fmtBytes(p.bytes)})을 선택했습니다.\n화면에서 확인한 뒤 하단의 '선택한 파일 삭제'를 누르세요.`);
+};
+
+// ---------- 전체 파일 탭 ----------
+let filePage = 0; const FILE_PAGE = 200;
+const fInputs = ["#fSort", "#fYear", "#fMonth", "#fBucket", "#fKind", "#fExt", "#fSrc", "#fDup", "#fView"];
+fInputs.forEach((s) => $(s).onchange = () => { filePage = 0; loadFiles(); });
+let qTimer; $("#fQ").oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(() => { filePage = 0; loadFiles(); }, 350); };
+for (let m = 1; m <= 12; m++) $("#fMonth").insertAdjacentHTML("beforeend", `<option value="${String(m).padStart(2, "0")}">${m}월</option>`);
+
+async function loadFiles() {
+  const q = new URLSearchParams({
+    sort: $("#fSort").value, year: $("#fYear").value, month: $("#fMonth").value, bucket: $("#fBucket").value,
+    kind: $("#fKind").value, ext: $("#fExt").value, date_src: $("#fSrc").value, dup: $("#fDup").checked ? "1" : "",
+    q: $("#fQ").value.trim(), offset: filePage * FILE_PAGE, limit: FILE_PAGE,
+  });
+  let d; try { d = await api("/api/files?" + q); } catch (e) { $("#fileList").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
+  $("#fInfo").textContent = `${fmtNum(d.total)}개 · ${fmtBytes(d.bytes)}`;
+  const box = $("#fileList");
+  if (!d.files.length) { box.innerHTML = `<div class="empty">조건에 맞는 파일이 없습니다.</div>`; $("#filePager").innerHTML = ""; return; }
+  fileView = d.files;
+  const byDate = $("#fSort").value.startsWith("taken");
+  if ($("#fView").value === "grid") {
+    let last = null, html = "";
+    d.files.forEach((f, i) => {
+      const ym = (f.taken || "").slice(0, 7);
+      if (byDate && ym !== last) { html += `<div class="mhead">${ym ? ym.replace("-", "년 ") + "월" : "날짜 없음"}</div>`; last = ym; }
+      html += `<div class="tile">${thumbHtml(f, f.dup ? "중복 " + f.dup : "")}
+        <div class="n" title="${esc(f.path)}">${esc(f.name)}</div>
+        <div class="m">${esc((f.taken || "").slice(0, 16))} · ${fmtBytes(f.size)}</div></div>`;
+    });
+    box.innerHTML = `<div class="grid">${html}</div>`;
+  } else {
+    box.innerHTML = `<div class="list-wrap"><table><thead><tr><th>이름</th><th>촬영일</th><th>출처</th><th class="num">크기</th><th>중복</th><th>폴더</th><th></th></tr></thead><tbody>${
+      d.files.map((f) => `<tr><td><a href="#" data-view="${f.id}">${esc(f.name)}</a></td><td style="white-space:nowrap">${esc(f.taken || "")}</td>
+        <td class="small">${SRC[f.date_src] || ""}</td><td class="num">${fmtBytes(f.size)}</td><td>${f.dup ? `<span class="err">${f.dup}개</span>` : ""}</td>
+        <td class="path">${esc(f.dir)}</td><td><button data-reveal="${f.id}">📂</button></td></tr>`).join("")
+    }</tbody></table></div>`;
+  }
+  pager($("#filePager"), filePage, Math.ceil(d.total / FILE_PAGE), (p) => { filePage = p; loadFiles(); window.scrollTo(0, $("#tab-files").offsetTop - 10); });
+}
+let fileView = [];
+
+function pager(el, cur, pages, go, label) {
+  if (pages <= 1) { el.innerHTML = label ? `<span class="muted">${label}</span>` : ""; return; }
+  el.innerHTML = `<button ${cur <= 0 ? "disabled" : ""} data-p="0">« 처음</button>
+    <button ${cur <= 0 ? "disabled" : ""} data-p="${cur - 1}">‹ 이전</button>
+    <span>${fmtNum(cur + 1)} / ${fmtNum(pages)} 페이지 ${label ? "· " + label : ""}</span>
+    <button ${cur >= pages - 1 ? "disabled" : ""} data-p="${cur + 1}">다음 ›</button>
+    <button ${cur >= pages - 1 ? "disabled" : ""} data-p="${pages - 1}">끝 »</button>`;
+  el.querySelectorAll("button").forEach((b) => b.onclick = () => go(+b.dataset.p));
+}
+
+// ---------- 통계 탭 ----------
+let stats = null;
+function barTable(rows, cols, onClick) {
+  const max = Math.max(1, ...rows.map((r) => r.bytes || 0));
+  return `<table><thead><tr>${cols.map((c) => `<th class="${c.num ? "num" : ""}">${c.t}</th>`).join("")}<th>용량 비율</th></tr></thead><tbody>${
+    rows.map((r, i) => `<tr class="${onClick ? "click" : ""}" data-i="${i}" title="${esc(r._title || "")}">${cols.map((c) => `<td class="${c.num ? "num" : c.cls || ""}">${c.f(r)}</td>`).join("")}
+      <td class="barcell"><div class="bar" style="width:${(r.bytes / max * 100).toFixed(1)}%;${r.bytes ? "" : "display:none"}" title="${fmtBytes(r.bytes)}"></div></td></tr>`).join("")
+  }</tbody></table>`;
+}
+function bindRows(el, rows, fn) { el.querySelectorAll("tr[data-i]").forEach((tr) => tr.onclick = () => fn(rows[+tr.dataset.i])); }
+function goFiles(set) {
+  const def = { "#fYear": "", "#fMonth": "", "#fBucket": "", "#fKind": "", "#fExt": "", "#fSrc": "" };
+  Object.entries({ ...def, ...set }).forEach(([k, v]) => $(k).value = v);
+  $("#fDup").checked = false; $("#fQ").value = "";
+  if (set["#fYear"]) $("#fSort").value = "taken_asc";
+  filePage = 0; loadFiles(); showTab("files");
+}
+async function loadStats() {
+  try { stats = await api("/api/stats"); } catch (e) { return; }
+  if (!stats.months) return;
+  const years = {};
+  stats.months.forEach((m) => { const y = m.ym.slice(0, 4); years[y] = years[y] || { y, count: 0, bytes: 0 }; years[y].count += m.count; years[y].bytes += m.bytes; });
+  const yr = Object.values(years).sort((a, b) => a.y.localeCompare(b.y));
+  const ySel = $("#fYear"), cur = ySel.value;
+  ySel.innerHTML = `<option value="">전체 연도</option>` + yr.slice().reverse().map((y) => `<option value="${y.y}">${y.y}년</option>`).join("");
+  ySel.value = cur;
+  const cnt = { t: "개수", num: true, f: (r) => fmtNum(r.count) }, sz = { t: "용량", num: true, f: (r) => fmtBytes(r.bytes) };
+  $("#sYears").innerHTML = barTable(yr, [{ t: "연도", f: (r) => r.y + "년 ▸" }, cnt, sz], true);
+  bindRows($("#sYears"), yr, (r) => showMonths(r.y));
+  showMonths(yr.length ? yr[yr.length - 1].y : null, true);
+
+  const bSel = $("#fBucket"), bcur = bSel.value;
+  bSel.innerHTML = `<option value="">전체 크기</option>` + stats.buckets.map((b) => `<option value="${b.key}">${b.label}</option>`).join("");
+  bSel.value = bcur;
+  $("#sBuckets").innerHTML = barTable(stats.buckets, [{ t: "크기", f: (r) => r.label }, cnt, sz], true);
+  bindRows($("#sBuckets"), stats.buckets, (r) => goFiles({ "#fBucket": r.key, "#fSort": "size_desc" }));
+
+  const eSel = $("#fExt"), ecur = eSel.value;
+  eSel.innerHTML = `<option value="">모든 확장자</option>` + stats.exts.map((e) => `<option value="${esc(e.ext)}">${esc(e.ext)} (${fmtNum(e.count)})</option>`).join("");
+  eSel.value = ecur;
+  $("#sExts").innerHTML = barTable(stats.exts, [{ t: "확장자", f: (r) => esc(r.ext) }, cnt, sz], true);
+  bindRows($("#sExts"), stats.exts, (r) => goFiles({ "#fExt": r.ext }));
+
+  const src = Object.entries(stats.date_src).map(([k, v]) => ({ k, count: v, bytes: v }));
+  const srcDesc = { exif: "사진 속 촬영 정보 (가장 정확)", filename: "파일 이름의 날짜 (예: 20230512_...)", mtime: "파일 수정 날짜 (복사하면 바뀔 수 있음)", pending: "아직 읽는 중" };
+  $("#sSrc").innerHTML = `<table><thead><tr><th>출처</th><th class="num">개수</th></tr></thead><tbody>${src.map((r, i) => `<tr class="click" data-i="${i}"><td>${srcDesc[r.k] || r.k}</td><td class="num">${fmtNum(r.count)}</td></tr>`).join("")}</tbody></table>`;
+  bindRows($("#sSrc"), src, (r) => goFiles({ "#fSrc": r.k }));
+
+  const fd = stats.dup_folders;
+  $("#sFolders").innerHTML = fd.length ? barTable(fd, [{ t: "폴더", cls: "path", f: (r) => esc(r.dir) }, { t: "중복 파일", num: true, f: (r) => fmtNum(r.count) }, sz], true) : `<div class="empty">중복 없음</div>`;
+  bindRows($("#sFolders"), fd, (r) => { $("#dupFolder").value = r.dir; dupOffset = 0; loadDups(); showTab("dups"); });
+}
+function showMonths(y) {
+  if (!y || !stats) { $("#sMonths").innerHTML = ""; return; }
+  $("#sMonthsTitle").textContent = `${y}년 월별`;
+  const ms = stats.months.filter((m) => m.ym.startsWith(y));
+  $("#sMonths").innerHTML = barTable(ms, [{ t: "월", f: (r) => +r.ym.slice(5) + "월" }, { t: "개수", num: true, f: (r) => fmtNum(r.count) }, { t: "용량", num: true, f: (r) => fmtBytes(r.bytes) }], true);
+  bindRows($("#sMonths"), ms, (r) => goFiles({ "#fYear": y, "#fMonth": r.ym.slice(5) }));
+}
+
+// ---------- 공통 클릭 (폴더 열기, 미리보기) ----------
+document.addEventListener("click", (e) => {
+  const r = e.target.closest("[data-reveal]");
+  if (r) { e.preventDefault(); api("/api/reveal", { id: +r.dataset.reveal }).catch((x) => alert(x.message)); return; }
+  const v = e.target.closest("[data-view]");
+  if (v) {
+    e.preventDefault();
+    const inDup = !!v.closest("#tab-dups");
+    openLb(inDup ? viewList : fileView, +v.dataset.view);
+  }
+});
+
+// ---------- 라이트박스 ----------
+let lbList = [], lbIdx = 0;
+function openLb(list, id) { lbList = list; lbIdx = Math.max(0, list.findIndex((f) => f.id === id)); renderLb(); $("#lb").classList.add("on"); }
+function renderLb() {
+  const f = lbList[lbIdx]; if (!f) return;
+  let media;
+  if (f.kind === "video" && f.viewable) media = `<video src="/file/${f.id}" controls autoplay></video>`;
+  else if (f.viewable && f.kind === "image") media = `<img src="/file/${f.id}" alt="">`;
+  else if (f.thumb !== "none") media = `<img src="/thumb/${f.id}" alt="">`;
+  else media = `<div>미리보기를 지원하지 않는 형식입니다 (${esc(f.ext)})</div>`;
+  $("#lbBody").innerHTML = media;
+  $("#lbInfo").innerHTML = `${esc(f.path)}<br>${esc(f.taken || "")} (${SRC[f.date_src] || ""}) · ${fmtBytes(f.size)} · ${lbIdx + 1}/${lbList.length}`;
+}
+function closeLb() { $("#lb").classList.remove("on"); $("#lbBody").innerHTML = ""; }
+$("#lbClose").onclick = closeLb;
+$("#lbPrev").onclick = () => { if (lbIdx > 0) { lbIdx--; renderLb(); } };
+$("#lbNext").onclick = () => { if (lbIdx < lbList.length - 1) { lbIdx++; renderLb(); } };
+$("#lbReveal").onclick = () => api("/api/reveal", { id: lbList[lbIdx].id });
+$("#lbOpen").onclick = () => window.open("/file/" + lbList[lbIdx].id, "_blank");
+$("#lb").onclick = (e) => { if (e.target.id === "lbBody") closeLb(); };
+document.addEventListener("keydown", (e) => {
+  if (!$("#lb").classList.contains("on")) return;
+  if (e.key === "Escape") closeLb();
+  if (e.key === "ArrowLeft") $("#lbPrev").click();
+  if (e.key === "ArrowRight") $("#lbNext").click();
+});
+
+// ---------- 삭제 ----------
+$("#selClear").onclick = () => { selected.clear(); document.querySelectorAll("input[data-sel]").forEach((c) => c.checked = false); document.querySelectorAll(".copy").forEach((c) => c.classList.remove("sel", "keep")); updateSelbar(); };
+$("#selDelete").onclick = async () => {
+  const mode = $("#delMode").value;
+  let b = 0; selected.forEach((s) => b += s);
+  const how = { trash: "휴지통으로 보냅니다", move: `'${features.suffix}' 폴더로 옮깁니다`, permanent: "영구 삭제합니다. 되돌릴 수 없습니다!" }[mode];
+  if (!confirm(`${fmtNum(selected.size)}개 파일 (${fmtBytes(b)})을 ${how}\n\n각 중복 그룹에서 최소 1개는 항상 남깁니다.\n계속할까요?`)) return;
+  if (mode === "permanent" && prompt("정말 영구 삭제하려면 '삭제' 라고 입력하세요.") !== "삭제") return;
+  const ids = [...selected.keys()];
+  let done = 0, freed = 0, skipped = [];
+  $("#selDelete").disabled = true;
+  try {
+    for (let i = 0; i < ids.length; i += 200) {
+      const r = await api("/api/delete", { ids: ids.slice(i, i + 200), mode });
+      done += r.deleted; freed += r.freed || 0; skipped = skipped.concat(r.skipped || []);
+      (r.deleted_ids || []).forEach((id) => selected.delete(id));
+      $("#delStatus").textContent = `처리 중… ${fmtNum(Math.min(i + 200, ids.length))}/${fmtNum(ids.length)}`;
+    }
+  } catch (e) { alert("삭제 중 오류: " + e.message); }
+  $("#selDelete").disabled = false; $("#delStatus").textContent = "";
+  skipped.forEach((s) => selected.delete(s.id));
+  updateSelbar();
+  let msg = `${fmtNum(done)}개 파일 정리 완료 (${fmtBytes(freed)} 확보).`;
+  if (skipped.length) msg += `\n${fmtNum(skipped.length)}개는 건너뜀: ` + [...new Set(skipped.map((s) => s.reason))].slice(0, 3).join(", ");
+  msg += `\n\n기록 파일: .photo_dedup/delete_log.csv`;
+  alert(msg);
+  reloadAll();
+};
+
+poll();
+</script>
+</body>
+</html>
