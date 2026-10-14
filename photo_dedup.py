@@ -1168,6 +1168,12 @@ def main():
     ap.add_argument("--no-browser", action="store_true", help="브라우저를 자동으로 열지 않음")
     ap.add_argument("--no-scan", action="store_true", help="이전 스캔 결과만 열기")
     args = ap.parse_args()
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleTitleW("사진 정리 도우미 — 이 창을 닫으면 프로그램이 종료됩니다")
+        except Exception:
+            pass
 
     APP_DIR.mkdir(parents=True, exist_ok=True)
     if args.folders:

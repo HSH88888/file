@@ -1,3 +1,9 @@
 .photo_dedup/
 __pycache__/
 *.pyc
+installer/app.ico
+installer/app.png
+build/
+dist/
+dist-portable/
+*.spec
