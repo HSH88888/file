@@ -142,6 +142,7 @@ tr.click:hover td { background: var(--sel); }
     <label class="small muted" for="roots">사진 폴더 경로 (여러 개면 한 줄에 하나씩, 예: D:\사진)</label>
     <textarea id="roots" spellcheck="false" placeholder="D:\사진"></textarea>
     <div class="row" style="margin-top:6px">
+      <button id="btnPick" hidden>📁 폴더 선택…</button>
       <button class="primary" id="btnScan">스캔 시작</button>
       <button id="btnCancel" disabled>중지</button>
       <label class="small"><input type="checkbox" id="allFiles"> 사진·동영상 외 모든 파일 포함</label>
@@ -347,6 +348,7 @@ async function poll() {
   let s;
   try { s = await api("/api/status"); } catch (e) { setTimeout(poll, 3000); return; }
   features = s.features;
+  $("#btnPick").hidden = !s.features.picker;
   if (!$("#roots").value && s.roots.length) $("#roots").value = s.roots.join("\n");
   $("#features").textContent = `썸네일 ${s.features.pil ? "고화질" : "기본"} · HEIC ${s.features.heif ? "O" : "X"} · 휴지통 ${s.features.trash ? "O" : "X (pip install send2trash)"}`;
   fillDelMode();
@@ -397,6 +399,13 @@ $("#btnScan").onclick = async () => {
   } catch (e) { alert(e.message); }
 };
 $("#btnCancel").onclick = () => api("/api/cancel", {});
+$("#btnPick").onclick = async () => {
+  const r = await api("/api/pick_folder", {}).catch((e) => ({ path: "" }));
+  if (!r.path) return;
+  const ta = $("#roots"), cur = ta.value.split(/\r?\n/).filter((x) => x.trim());
+  if (!cur.includes(r.path)) cur.push(r.path);
+  ta.value = cur.join("\n");
+};
 
 // ---------- 탭 ----------
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
@@ -636,7 +645,7 @@ $("#selDelete").onclick = async () => {
   updateSelbar();
   let msg = `${fmtNum(done)}개 파일 정리 완료 (${fmtBytes(freed)} 확보).`;
   if (skipped.length) msg += `\n${fmtNum(skipped.length)}개는 건너뜀: ` + [...new Set(skipped.map((s) => s.reason))].slice(0, 3).join(", ");
-  msg += `\n\n기록 파일: .photo_dedup/delete_log.csv`;
+  msg += `\n\n기록 파일: ${features.log}`;
   alert(msg);
   reloadAll();
 };

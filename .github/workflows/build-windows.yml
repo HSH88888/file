@@ -1,0 +1,47 @@
+name: Windows 실행 파일 빌드
+
+on:
+  push:
+    paths:
+      - "photo_dedup.py"
+      - "photo_dedup.html"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: python -m pip install --upgrade pip pyinstaller Pillow pillow-heif send2trash
+
+      - name: exe 만들기
+        run: >
+          pyinstaller --noconfirm --onefile --console
+          --name PhotoDedup
+          --add-data "photo_dedup.html;."
+          --collect-all pillow_heif
+          --hidden-import send2trash
+          photo_dedup.py
+
+      - name: 실행 확인 (서버가 뜨고 화면이 응답하는지)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\PhotoDedup.exe -ArgumentList "--no-browser","--port","8799" -PassThru
+          Start-Sleep -Seconds 8
+          $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8799/api/status
+          Write-Output $r.Content
+          $h = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8799/
+          if ($h.StatusCode -ne 200) { throw "UI not served" }
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhotoDedup-windows
+          path: dist/PhotoDedup.exe

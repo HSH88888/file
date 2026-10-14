@@ -66,7 +66,14 @@ try:
 except ImportError:
     HAS_TRASH = False
 
-APP_DIR = Path(__file__).resolve().parent / ".photo_dedup"
+FROZEN = getattr(sys, "frozen", False)  # PyInstaller 로 만든 exe 로 실행 중인지
+if FROZEN:
+    # exe 는 임시 폴더에서 풀려 실행되므로, 데이터는 사용자 폴더에 저장한다.
+    APP_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "PhotoDedup"
+    RES_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+else:
+    APP_DIR = Path(__file__).resolve().parent / ".photo_dedup"
+    RES_DIR = Path(__file__).resolve().parent
 THUMB_DIR = APP_DIR / "thumbs"
 LOG_FILE = APP_DIR / "delete_log.csv"
 QUARANTINE_SUFFIX = "_중복삭제대기"
@@ -973,7 +980,35 @@ def make_thumb(r):
 # 웹 서버
 # ---------------------------------------------------------------------------
 
-HTML_PATH = Path(__file__).resolve().parent / "photo_dedup.html"
+HTML_PATH = RES_DIR / "photo_dedup.html"
+
+
+def pick_folder():
+    """윈도우 '폴더 선택' 창을 띄워 고른 경로를 돌려준다."""
+    try:
+        import tkinter
+        from tkinter import filedialog
+    except ImportError:
+        return None
+    root = tkinter.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        path = filedialog.askdirectory(parent=root, title="사진 폴더를 선택하세요", mustexist=True)
+    finally:
+        root.destroy()
+    return os.path.normpath(path) if path else ""
+
+
+PICK_LOCK = threading.Lock()
+
+
+def has_picker():
+    try:
+        import tkinter  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1012,7 +1047,8 @@ class Handler(BaseHTTPRequestHandler):
                 p = STATE.progress()
                 p["summary"] = api_summary()
                 p["features"] = {"pil": HAS_PIL, "heif": HAS_HEIF, "trash": HAS_TRASH,
-                                 "platform": sys.platform, "suffix": QUARANTINE_SUFFIX}
+                                 "platform": sys.platform, "suffix": QUARANTINE_SUFFIX,
+                                 "picker": has_picker(), "log": str(LOG_FILE)}
                 return self._send(200, p)
             if u.path == "/api/duplicates":
                 return self._send(200, api_duplicates(q))
@@ -1101,6 +1137,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/open":
                 ok = open_existing(body.get("roots", []))
                 return self._send(200, {"ok": ok})
+            if u.path == "/api/pick_folder":
+                if not PICK_LOCK.acquire(blocking=False):
+                    return self._send(200, {"path": ""})
+                try:
+                    return self._send(200, {"path": pick_folder()})
+                finally:
+                    PICK_LOCK.release()
             if u.path == "/api/cancel":
                 STATE.cancel = True
                 return self._send(200, {"ok": True})
@@ -1139,15 +1182,24 @@ def main():
     elif load_last() and open_existing(load_last()):
         print("이전 스캔 결과를 엽니다: %s" % ", ".join(STATE.roots))
 
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    srv.daemon_threads = True
     url = "http://127.0.0.1:%d/" % args.port
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError:
+        # 이미 실행 중이면 그 화면만 다시 연다.
+        print("이미 실행 중입니다. 브라우저 화면을 엽니다: %s" % url)
+        webbrowser.open(url)
+        if FROZEN:
+            time.sleep(3)
+        return
+    srv.daemon_threads = True
     print("=" * 60)
     print(" 사진 정리 도우미가 실행되었습니다.")
     print(" 브라우저에서 열기: %s" % url)
     print(" 썸네일(Pillow): %s / HEIC: %s / 휴지통(send2trash): %s"
           % ("O" if HAS_PIL else "X", "O" if HAS_HEIF else "X", "O" if HAS_TRASH else "X"))
-    print(" 종료하려면 이 창에서 Ctrl+C 를 누르세요.")
+    print(" 데이터 저장 위치: %s" % APP_DIR)
+    print(" 종료하려면 이 창을 닫으세요.")
     print("=" * 60)
     if not args.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
